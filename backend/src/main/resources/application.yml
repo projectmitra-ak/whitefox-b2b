@@ -1,0 +1,173 @@
+spring:
+  application:
+    name: whitefox-backend
+  profiles:
+    active: dev
+  datasource:
+    url: jdbc:postgresql://localhost:5432/whitefox
+    username: whitefox
+    password: whitefox_dev
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+      leak-detection-threshold: 60000
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          time_zone: UTC
+        default_batch_fetch_size: 20
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: true
+  redis:
+    host: localhost
+    port: 6379
+    timeout: 2000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 2
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+    consumer:
+      group-id: whitefox-consumer
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.whitefox.*"
+        spring.json.value.default.type: "com.whitefox.common.event.BaseEvent"
+    listener:
+      ack-mode: manual_immediate
+      concurrency: 3
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+  web:
+    resources:
+      static-locations: classpath:/static/
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain,application/javascript,text/css
+  error:
+    include-stacktrace: on_param
+    include-message: always
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,loggers,scheduledtasks
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+
+logging:
+  level:
+    com.whitefox: DEBUG
+    org.springframework.modulith: DEBUG
+    org.springframework.kafka: DEBUG
+    org.flywaydb: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/whitefox.log
+    max-size: 100MB
+    max-history: 30
+
+whitefox:
+  jwt:
+    secret: ${JWT_SECRET:d2hpdGVmb3gtZGV2LXNlY3JldC1rZXktY2hhbmdlLWluLXByb2R1Y3Rpb24tbWluLTI1Ni1iaXRz}
+    expiration: ${JWT_EXPIRATION:86400000}
+    refresh-expiration: 604800000
+  multi-tenancy:
+    header-name: X-Tenant-ID
+    default-tenant: system
+  cors:
+    allowed-origins: "http://localhost:3000,http://localhost:3001"
+  rfid:
+    deduplication-window-ms: 5000
+    enrichment-timeout-ms: 2000
+  laundry:
+    default-sla-hours: 24
+    qc-sample-rate: 0.1
+  websocket:
+    allowed-origins: "http://localhost:3000,http://localhost:3001"
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+  packages-to-scan: com.whitefox
+  paths-to-match: /api/**
+
+---
+# Docker Profile
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+  datasource:
+    url: jdbc:postgresql://postgres:5432/whitefox
+  redis:
+    host: redis
+  kafka:
+    bootstrap-servers: redpanda:9092
+
+---
+# Test Profile
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+  datasource:
+    url: jdbc:tc:postgresql:16-alpine:///whitefox
+    username: test
+    password: test
+  redis:
+    host: localhost
+  kafka:
+    bootstrap-servers: localhost:9092
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
