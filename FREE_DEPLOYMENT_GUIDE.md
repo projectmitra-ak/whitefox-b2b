@@ -47,7 +47,7 @@ sudo sh get-docker.sh
 sudo usermod -aG docker $USER
 
 # Clone WhiteFox repo
-git clone <YOUR_GIT_REPO> /var/www/whitefox
+git clone https://github.com/projectmitra-ak/whitefox-b2b.git /var/www/whitefox
 cd /var/www/whitefox/whitefox
 
 # Run Docker Compose
