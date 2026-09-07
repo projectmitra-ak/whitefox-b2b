@@ -58,6 +58,8 @@ import {
   Calendar,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { DetailedBillingView } from '@/components/billing/DetailedBillingView';
+import { MasterPickupCalendar } from '@/components/calendar/MasterPickupCalendar';
 
 /* ──────────────── Garment set status badge ──────────────── */
 function GarmentBadge({ item }: { item: WfEmployee['setA'] }) {
@@ -414,7 +416,7 @@ function CleaningPrefModal({
 /* ──────────────── Main TenantAdminDashboard ──────────────── */
 export function TenantAdminDashboard() {
   const { user, logout } = useAuth();
-  const { tenants, drivers, employees, cleaningPrefs, invoices, deleteEmployee, deleteCleaningPref } = useWhiteFoxStore();
+  const { tenants, drivers, employees, cleaningPrefs, invoices, pickupRequests, deleteEmployee, deleteCleaningPref } = useWhiteFoxStore();
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -426,6 +428,7 @@ export function TenantAdminDashboard() {
   const tenantEmployees = employees.filter((e) => e.tenantId === (tenant?.id ?? 'tnt-1'));
   const tenantPrefs = cleaningPrefs.filter((p) => p.tenantId === (tenant?.id ?? 'tnt-1'));
   const tenantInvoices = invoices.filter((inv) => inv.tenantId === (tenant?.id ?? 'tnt-1'));
+  const tenantPickups = pickupRequests.filter((p) => p.tenantId === (tenant?.id ?? 'tnt-1'));
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDept, setSelectedDept] = useState('all');
@@ -509,8 +512,9 @@ export function TenantAdminDashboard() {
 
       {/* ── Tabs ── */}
       <Tabs defaultValue="employees">
-        <TabsList className="grid w-full max-w-md grid-cols-3">
+        <TabsList className="grid w-full max-w-xl grid-cols-4">
           <TabsTrigger value="employees">Employees ({tenantEmployees.length})</TabsTrigger>
+          <TabsTrigger value="pickup">📅 Schedule Pickup ({tenantPickups.length})</TabsTrigger>
           <TabsTrigger value="invoices">Invoices ({tenantInvoices.length})</TabsTrigger>
           <TabsTrigger value="cleaning">Cleaning Preferences</TabsTrigger>
         </TabsList>
@@ -607,58 +611,14 @@ export function TenantAdminDashboard() {
           </Card>
         </TabsContent>
 
+        {/* ── Pickup Scheduling Tab ── */}
+        <TabsContent value="pickup" className="mt-4">
+          <MasterPickupCalendar mode="TENANT" tenantId={tenant.id} />
+        </TabsContent>
+
         {/* ── Invoices Tab ── */}
         <TabsContent value="invoices" className="mt-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2"><Receipt className="w-5 h-5 text-emerald-600" /> Billing Statements & Invoices</CardTitle>
-                <p className="text-xs text-muted-foreground mt-0.5">Commercial laundry invoices and GST breakdowns issued by WhiteFox Admin</p>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/30">
-                    <TableHead>Invoice #</TableHead>
-                    <TableHead>Billing Period</TableHead>
-                    <TableHead>Garments Washed</TableHead>
-                    <TableHead>Base Rate</TableHead>
-                    <TableHead>GST (18%)</TableHead>
-                    <TableHead>Total (₹)</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Due Date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tenantInvoices.length === 0 ? (
-                    <TableRow><TableCell colSpan={8} className="text-center py-10 text-muted-foreground">No invoices issued yet for this billing cycle.</TableCell></TableRow>
-                  ) : (
-                    tenantInvoices.map((inv) => (
-                      <TableRow key={inv.id} className="hover:bg-muted/40">
-                        <TableCell className="font-mono font-bold text-foreground">{inv.invoiceNumber}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{inv.billingPeriodStart} to {inv.billingPeriodEnd}</TableCell>
-                        <TableCell className="font-mono">{inv.totalGarmentsCleaned.toLocaleString()}</TableCell>
-                        <TableCell className="font-mono">₹{inv.ratePerWash}/wash</TableCell>
-                        <TableCell className="font-mono text-xs">₹{inv.taxAmount.toLocaleString()}</TableCell>
-                        <TableCell className="font-mono font-bold text-base text-foreground">₹{inv.totalAmount.toLocaleString()}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={cn(
-                            inv.status === 'PAID' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
-                            inv.status === 'PENDING' ? 'bg-amber-100 text-amber-800 border-amber-300' :
-                            'bg-red-100 text-red-800 border-red-300'
-                          )}>
-                            {inv.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{inv.dueDate}</TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <DetailedBillingView mode="TENANT" tenantId={tenant.id} />
         </TabsContent>
 
         {/* ── Cleaning Preferences Tab ── */}

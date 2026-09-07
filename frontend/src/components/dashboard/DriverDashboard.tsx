@@ -12,6 +12,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Truck,
   LogOut,
@@ -22,8 +23,10 @@ import {
   Circle,
   MapPin,
   Building2,
+  Calendar,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { MasterPickupCalendar } from '@/components/calendar/MasterPickupCalendar';
 
 /* ──────────────── Status config ──────────────── */
 const STATUS_OPTIONS: {
@@ -101,7 +104,7 @@ const STATUS_OPTIONS: {
 /* ──────────────── Main ──────────────── */
 export function DriverDashboard() {
   const { user, logout } = useAuth();
-  const { drivers, tenants, setDriverStatus } = useWhiteFoxStore();
+  const { drivers, tenants, pickupRequests, setDriverStatus } = useWhiteFoxStore();
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -128,6 +131,10 @@ export function DriverDashboard() {
     setDriverStatus(driver.id, newStatus);
     toast.success(`Status updated: ${DRIVER_STATUS_LABELS[newStatus]}`);
   };
+
+  // Pickups assigned to this driver
+  const myPickups = pickupRequests.filter((p) => p.assignedDriverId === driver.id);
+  const upcomingPickups = myPickups.filter((p) => p.status !== 'COMPLETED' && p.status !== 'CANCELLED');
 
   return (
     <div className="space-y-6 p-6">
@@ -239,7 +246,7 @@ export function DriverDashboard() {
           { label: 'Pickups Today', value: 3, color: 'text-blue-600', bg: 'bg-blue-50', icon: Package },
           { label: 'Deliveries Today', value: 2, color: 'text-emerald-600', bg: 'bg-emerald-50', icon: CheckCircle2 },
           { label: 'Garments Collected', value: 148, color: 'text-orange-600', bg: 'bg-orange-50', icon: Truck },
-          { label: 'Garments Delivered', value: 92, color: 'text-purple-600', bg: 'bg-purple-50', icon: CheckCircle2 },
+          { label: 'Upcoming Pickups', value: upcomingPickups.length, color: 'text-violet-600', bg: 'bg-violet-50', icon: Calendar },
         ].map((stat) => (
           <div key={stat.label} className="rounded-xl border p-4 bg-card shadow-sm flex items-center justify-between">
             <div>
@@ -253,31 +260,53 @@ export function DriverDashboard() {
         ))}
       </div>
 
-      {/* ── Activity Log ── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Today's Activity Log</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {[
-              { time: '09:15 AM', action: 'Status set to En Route to Pickup', color: 'bg-blue-500' },
-              { time: '09:45 AM', action: 'Arrived at City General Hospital — ICU Wing', color: 'bg-orange-500' },
-              { time: '10:10 AM', action: 'RFID scan: 74 garments collected', color: 'bg-orange-500' },
-              { time: '10:30 AM', action: 'Picked Up — driving to WhiteFox Plant', color: 'bg-purple-500' },
-              { time: '11:20 AM', action: 'Delivered 92 clean garments to Hospital', color: 'bg-emerald-500' },
-            ].map((entry, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <div className={cn('w-2 h-2 rounded-full mt-1.5 flex-shrink-0', entry.color)} />
-                <div>
-                  <p className="text-sm font-medium">{entry.action}</p>
-                  <p className="text-xs text-muted-foreground font-mono">{entry.time}</p>
-                </div>
+      {/* ── Tabs: Status + Pickup Calendar ── */}
+      <Tabs defaultValue="status">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="status" className="gap-1.5">
+            <MapPin className="w-3.5 h-3.5" />
+            Live Status
+          </TabsTrigger>
+          <TabsTrigger value="pickups" className="gap-1.5">
+            <Calendar className="w-3.5 h-3.5 text-blue-500" />
+            Pickup Schedule ({upcomingPickups.length})
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ── Status Tab ── */}
+        <TabsContent value="status" className="mt-4">
+          {/* Activity Log */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Today's Activity Log</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {[
+                  { time: '09:15 AM', action: 'Status set to En Route to Pickup', color: 'bg-blue-500' },
+                  { time: '09:45 AM', action: 'Arrived at City General Hospital — ICU Wing', color: 'bg-orange-500' },
+                  { time: '10:10 AM', action: 'RFID scan: 74 garments collected', color: 'bg-orange-500' },
+                  { time: '10:30 AM', action: 'Picked Up — driving to WhiteFox Plant', color: 'bg-purple-500' },
+                  { time: '11:20 AM', action: 'Delivered 92 clean garments to Hospital', color: 'bg-emerald-500' },
+                ].map((entry, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <div className={cn('w-2 h-2 rounded-full mt-1.5 flex-shrink-0', entry.color)} />
+                    <div>
+                      <p className="text-sm font-medium">{entry.action}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{entry.time}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Pickup Schedule Tab ── */}
+        <TabsContent value="pickups" className="mt-4">
+          <MasterPickupCalendar mode="DRIVER" driverId={driver.id} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

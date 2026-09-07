@@ -56,12 +56,19 @@ import {
   AlertTriangle,
   Filter,
   Search,
-  Receipt,
   FileText,
   DollarSign,
   Calendar,
+  Bell,
+  Radio,
+  Calculator,
+  Receipt,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { RFIDTunnelingStation } from '@/components/rfid/RFIDTunnelingStation';
+import { AdminNotificationCenter, AdminLoginNotificationPopup } from '@/components/notifications/AdminNotificationCenter';
+import { DetailedBillingView } from '@/components/billing/DetailedBillingView';
+import { MasterPickupCalendar } from '@/components/calendar/MasterPickupCalendar';
 
 /* ──────────────── Status Badges ──────────────── */
 function statusBadge(status: WfTenant['status']) {
@@ -381,6 +388,7 @@ function InvoiceModal({
       baseAmount,
       expressCharges,
       disinfectionCharges,
+      missingGarmentPenalty: initial?.missingGarmentPenalty || 0,
       taxGstPercent,
       taxAmount,
       totalAmount,
@@ -799,20 +807,29 @@ function TenantRowWithEmployees({
 export function AdminDashboard() {
   const { authorized } = useRequireRole([ROLES.WHITEFOX_ADMIN]);
   const { user, logout } = useAuth();
-  const { tenants, drivers, employees, invoices, deleteTenant, deleteDriver, deleteInvoice } = useWhiteFoxStore();
+  const {
+    tenants,
+    drivers,
+    employees,
+    invoices,
+    gateScans,
+    notifications,
+    pickupRequests,
+    deleteTenant,
+    deleteDriver,
+  } = useWhiteFoxStore();
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  const [activeTab, setActiveTab] = useState<string>('tenants');
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(tenants[0]?.id ?? null);
   const [tenantModal, setTenantModal] = useState<{ open: boolean; initial?: WfTenant }>({ open: false });
   const [driverModal, setDriverModal] = useState<{ open: boolean; initial?: Driver }>({ open: false });
-  const [invoiceModal, setInvoiceModal] = useState<{ open: boolean; initial?: Invoice }>({ open: false });
   const [deleteTarget, setDeleteTarget] = useState<{ open: boolean; label: string; onConfirm: () => void }>({ open: false, label: '', onConfirm: () => {} });
   const [searchTenant, setSearchTenant] = useState('');
-  const [invoiceFilterTenant, setInvoiceFilterTenant] = useState<string>('ALL');
 
   if (!mounted) {
     return (
@@ -828,17 +845,16 @@ export function AdminDashboard() {
     `${t.name} ${t.code} ${t.city}`.toLowerCase().includes(searchTenant.toLowerCase())
   );
 
-  const filteredInvoices = invoices.filter((inv) =>
-    invoiceFilterTenant === 'ALL' || inv.tenantId === invoiceFilterTenant
-  );
-
   const totalEmployees = employees.length || tenants.reduce((s, t) => s + t.employeeCount, 0);
   const totalGarments = tenants.reduce((s, t) => s + t.totalGarments, 0);
-  const activeDrivers = drivers.filter((d) => d.status !== 'OFF_DUTY').length;
   const totalRevenue = invoices.reduce((s, inv) => s + inv.totalAmount, 0);
+  const unreadNotifsCount = notifications.filter((n) => !n.read).length;
 
   return (
     <div className="space-y-6 p-6">
+      {/* ── Admin Login Popup for Gate Scans & Missing Garments ── */}
+      <AdminLoginNotificationPopup />
+
       {/* ── Header ── */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-5 bg-card border rounded-2xl shadow-sm">
         <div>
@@ -849,18 +865,40 @@ export function AdminDashboard() {
           </div>
           <p className="text-muted-foreground text-sm mt-1">Logged in as: <strong>{user?.email}</strong> · Full Multi-Tenant Management</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => logout()} className="text-red-600 hover:bg-red-50 border-red-200 gap-2 cursor-pointer">
-          <LogOut className="w-4 h-4" /> Sign Out
-        </Button>
+
+        <div className="flex items-center gap-3">
+          {/* Direct Notification Center Bell Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setActiveTab('notifications')}
+            className={cn(
+              'relative gap-2 border-violet-200 text-violet-700 dark:text-violet-300 hover:bg-violet-50 cursor-pointer',
+              unreadNotifsCount > 0 && 'ring-2 ring-red-500/40'
+            )}
+          >
+            <Bell className="w-4 h-4 text-violet-600" />
+            <span>Alerts</span>
+            {unreadNotifsCount > 0 && (
+              <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold leading-none text-white bg-red-600 rounded-full animate-pulse">
+                {unreadNotifsCount}
+              </span>
+            )}
+          </Button>
+
+          <Button variant="outline" size="sm" onClick={() => logout()} className="text-red-600 hover:bg-red-50 border-red-200 gap-2 cursor-pointer">
+            <LogOut className="w-4 h-4" /> Sign Out
+          </Button>
+        </div>
       </div>
 
       {/* ── KPI Row ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Total Tenants', value: tenants.length, icon: Building2, color: 'text-violet-600', bg: 'bg-violet-50' },
+          { label: 'Total Clients', value: tenants.length, icon: Building2, color: 'text-violet-600', bg: 'bg-violet-50' },
           { label: 'Total Staff Managed', value: totalEmployees.toLocaleString(), icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Total RFID Garments', value: totalGarments.toLocaleString(), icon: Package, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'Total Invoiced Value', value: `₹${totalRevenue.toLocaleString()}`, icon: Receipt, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'RFID Garments', value: totalGarments.toLocaleString(), icon: Package, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Total Billed Value', value: `₹${totalRevenue.toLocaleString()}`, icon: Receipt, color: 'text-emerald-600', bg: 'bg-emerald-50' },
         ].map((stat) => (
           <div key={stat.label} className="rounded-xl border p-4 bg-card shadow-sm flex items-center justify-between">
             <div>
@@ -874,15 +912,34 @@ export function AdminDashboard() {
         ))}
       </div>
 
-      {/* ── Tabs ── */}
-      <Tabs defaultValue="tenants">
-        <TabsList className="grid grid-cols-3 w-full max-w-md">
-          <TabsTrigger value="tenants">Tenants & Staff ({tenants.length})</TabsTrigger>
-          <TabsTrigger value="invoices">Invoices & Billing ({invoices.length})</TabsTrigger>
-          <TabsTrigger value="drivers">Drivers ({drivers.length})</TabsTrigger>
+      {/* ── 6 Comprehensive Admin Tabs ── */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 w-full max-w-5xl h-auto p-1 gap-1">
+          <TabsTrigger value="tenants" className="text-xs py-2">
+            Tenants & Staff ({tenants.length})
+          </TabsTrigger>
+          <TabsTrigger value="rfid-tunnel" className="text-xs py-2 gap-1.5">
+            <Radio className="w-3.5 h-3.5 text-indigo-500" />
+            3-Gate RFID Tunnel
+          </TabsTrigger>
+          <TabsTrigger value="billing" className="text-xs py-2 gap-1.5">
+            <Calculator className="w-3.5 h-3.5 text-emerald-500" />
+            GST Billing ({invoices.length})
+          </TabsTrigger>
+          <TabsTrigger value="calendar" className="text-xs py-2 gap-1.5">
+            <Calendar className="w-3.5 h-3.5 text-blue-500" />
+            Pickup Calendar ({pickupRequests.length})
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="text-xs py-2 gap-1.5">
+            <Bell className="w-3.5 h-3.5 text-violet-500" />
+            Notifications {unreadNotifsCount > 0 && `(${unreadNotifsCount})`}
+          </TabsTrigger>
+          <TabsTrigger value="drivers" className="text-xs py-2">
+            Drivers ({drivers.length})
+          </TabsTrigger>
         </TabsList>
 
-        {/* ── Tenants Tab ── */}
+        {/* ── 1. Tenants & Staff Tab ── */}
         <TabsContent value="tenants" className="mt-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4">
@@ -891,7 +948,7 @@ export function AdminDashboard() {
                 <p className="text-xs text-muted-foreground mt-0.5">Click any tenant row to inspect all assigned employees and apply filters (missing, repair, laundry)</p>
               </div>
               <div className="flex items-center gap-2">
-                <Input placeholder="Search tenants…" value={searchTenant} onChange={(e) => setSearchTenant(e.target.value)} className="w-48" />
+                <Input placeholder="Search tenants…" value={searchTenant} onChange={(e) => setSearchTenant(e.target.value)} className="w-48 text-xs" />
                 <Button size="sm" onClick={() => setTenantModal({ open: true })} className="bg-violet-600 hover:bg-violet-700 text-white gap-1 cursor-pointer">
                   <Plus className="w-4 h-4" /> Add Tenant
                 </Button>
@@ -934,120 +991,32 @@ export function AdminDashboard() {
           </Card>
         </TabsContent>
 
-        {/* ── Invoices & Billing Tab ── */}
-        <TabsContent value="invoices" className="mt-4">
-          <Card>
-            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <CardTitle className="flex items-center gap-2"><Receipt className="w-5 h-5 text-emerald-600" /> Tenant Invoices & Billing Statements</CardTitle>
-                <p className="text-xs text-muted-foreground mt-0.5">Generate and manage time-span based commercial laundry invoices for each tenant</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="w-48">
-                  <Select value={invoiceFilterTenant} onValueChange={setInvoiceFilterTenant}>
-                    <SelectContent>
-                      <SelectItem value="ALL">All Organizations</SelectItem>
-                      {tenants.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button size="sm" onClick={() => setInvoiceModal({ open: true })} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1 cursor-pointer">
-                  <Plus className="w-4 h-4" /> Generate Invoice
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/30">
-                    <TableHead>Invoice #</TableHead>
-                    <TableHead>Tenant</TableHead>
-                    <TableHead>Billing Time Span</TableHead>
-                    <TableHead>Garments</TableHead>
-                    <TableHead>Base Rate</TableHead>
-                    <TableHead>GST (18%)</TableHead>
-                    <TableHead>Total (₹)</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredInvoices.length === 0 ? (
-                    <TableRow><TableCell colSpan={10} className="text-center py-10 text-muted-foreground">No invoices found. Click "Generate Invoice" to issue a statement.</TableCell></TableRow>
-                  ) : (
-                    filteredInvoices.map((inv) => (
-                      <TableRow key={inv.id} className="hover:bg-muted/40">
-                        <TableCell className="font-mono font-bold text-foreground">{inv.invoiceNumber}</TableCell>
-                        <TableCell>
-                          <p className="font-semibold">{inv.tenantName}</p>
-                          <p className="text-xs text-muted-foreground">{inv.tenantCode}</p>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {inv.billingPeriodStart} to {inv.billingPeriodEnd}
-                        </TableCell>
-                        <TableCell className="font-mono">{inv.totalGarmentsCleaned.toLocaleString()}</TableCell>
-                        <TableCell className="font-mono">₹{inv.ratePerWash}/wash</TableCell>
-                        <TableCell className="font-mono text-xs">₹{inv.taxAmount.toLocaleString()}</TableCell>
-                        <TableCell className="font-mono font-bold text-base text-foreground">
-                          ₹{inv.totalAmount.toLocaleString()}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={cn(
-                            inv.status === 'PAID' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
-                            inv.status === 'PENDING' ? 'bg-amber-100 text-amber-800 border-amber-300' :
-                            'bg-red-100 text-red-800 border-red-300'
-                          )}>
-                            {inv.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{inv.dueDate}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-blue-600 cursor-pointer"
-                              title="Edit Invoice"
-                              onClick={() => setInvoiceModal({ open: true, initial: inv })}
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-red-500 cursor-pointer"
-                              title="Delete Invoice"
-                              onClick={() => setDeleteTarget({
-                                open: true,
-                                label: `Invoice ${inv.invoiceNumber} for ${inv.tenantName}`,
-                                onConfirm: () => {
-                                  deleteInvoice(inv.id);
-                                  toast.success(`Invoice ${inv.invoiceNumber} deleted`);
-                                },
-                              })}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+        {/* ── 2. 3-Gate RFID Tunneling Station Tab ── */}
+        <TabsContent value="rfid-tunnel" className="mt-4">
+          <RFIDTunnelingStation />
         </TabsContent>
 
-        {/* ── Drivers Tab ── */}
+        {/* ── 3. Detailed Itemized Invoices & GST Billing Tab ── */}
+        <TabsContent value="billing" className="mt-4">
+          <DetailedBillingView mode="ADMIN" />
+        </TabsContent>
+
+        {/* ── 4. Master Pickup Calendar Tab ── */}
+        <TabsContent value="calendar" className="mt-4">
+          <MasterPickupCalendar mode="ADMIN" />
+        </TabsContent>
+
+        {/* ── 5. Admin Notifications & Discrepancy Stream Tab ── */}
+        <TabsContent value="notifications" className="mt-4">
+          <AdminNotificationCenter />
+        </TabsContent>
+
+        {/* ── 5. Drivers & Logistics Tab ── */}
         <TabsContent value="drivers" className="mt-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="flex items-center gap-2"><Truck className="w-5 h-5 text-amber-600" /> Drivers</CardTitle>
+                <CardTitle className="flex items-center gap-2"><Truck className="w-5 h-5 text-amber-600" /> Drivers & Logistics Fleet</CardTitle>
                 <p className="text-xs text-muted-foreground mt-0.5">Manage driver accounts, vehicle assignment, and tenant allocation</p>
               </div>
               <Button size="sm" onClick={() => setDriverModal({ open: true })} className="bg-amber-600 hover:bg-amber-700 text-white gap-1 cursor-pointer">
@@ -1106,7 +1075,6 @@ export function AdminDashboard() {
       {/* ── Modals ── */}
       <TenantModal open={tenantModal.open} onClose={() => setTenantModal({ open: false })} initial={tenantModal.initial} drivers={drivers} />
       <DriverModal open={driverModal.open} onClose={() => setDriverModal({ open: false })} initial={driverModal.initial} tenants={tenants} />
-      <InvoiceModal open={invoiceModal.open} onClose={() => setInvoiceModal({ open: false })} tenants={tenants} initial={invoiceModal.initial} />
       <DeleteConfirm {...deleteTarget} onClose={() => setDeleteTarget((s) => ({ ...s, open: false }))} />
     </div>
   );

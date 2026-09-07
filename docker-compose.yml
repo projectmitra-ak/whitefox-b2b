@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgis/postgis:16-3.4-alpine
     container_name: whitefox-postgres
     environment:
       POSTGRES_DB: whitefox
@@ -46,12 +44,6 @@ services:
       - "19092:19092"
     volumes:
       - redpanda_data:/var/lib/redpanda/data
-    healthcheck:
-      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
-      interval: 10s
-      timeout: 10s
-      retries: 10
-      start_period: 40s
 
   backend:
     build:
@@ -65,18 +57,17 @@ services:
       SPRING_DATASOURCE_PASSWORD: whitefox_dev
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
       SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
-      JWT_SECRET: whitefox-dev-secret-key-change-in-production
+      JWT_SECRET: d2hpdGVmb3gtZGV2LXNlY3JldC1rZXktY2hhbmdlLWluLXByb2R1Y3Rpb24tbWluLTI1Ni1iaXRz
       JWT_EXPIRATION: 86400000
     ports:
       - "8080:8080"
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      redpanda:
-        condition: service_healthy
+      - postgres
+      - redis
+      - redpanda
 
   frontend:
     build:

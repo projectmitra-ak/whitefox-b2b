@@ -175,8 +175,8 @@ export default function LoginPage() {
   const { login } = useAuth();
 
   const [selectedRole, setSelectedRole] = useState<RoleOption>(ROLE_OPTIONS[0]);
-  const [email, setEmail] = useState(ROLE_OPTIONS[0].defaultEmail);
-  const [password, setPassword] = useState(ROLE_OPTIONS[0].defaultPassword);
+  const [email, setEmail] = useState<string>(ROLE_OPTIONS[0].defaultEmail);
+  const [password, setPassword] = useState<string>(ROLE_OPTIONS[0].defaultPassword);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');

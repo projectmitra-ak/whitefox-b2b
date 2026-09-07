@@ -12,7 +12,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-@SpringBootApplication(exclude = {SecurityAutoConfiguration.class})
+@SpringBootApplication
 @EnableAsync
 @EnableScheduling
 public class WhitefoxApplication {
@@ -26,7 +26,7 @@ public class WhitefoxApplication {
     }
 
     @Bean
-    CommandLineRunner testPasswordEncoder(BCryptPasswordEncoder encoder) {
+    CommandLineRunner testPasswordEncoder(PasswordEncoder encoder) {
         return args -> {
             String hash = encoder.encode("admin123");
             System.out.println("=== GENERATED HASH FOR 'admin123': " + hash + " ===");
